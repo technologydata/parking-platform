@@ -1,0 +1,8 @@
+# Files Docker should NOT send to the build. 
+# Your Windows .venv must never go into a Linux image. 
+.venv
+__pycache__
+*.pyc
+.ruff_cache
+.pytest_cache
+.git

@@ -1,0 +1,98 @@
+services:
+
+  # ---------- PostgreSQL (with the PostGIS add-on for location data later) ----------
+  postgres:
+    image: postgis/postgis:16-3.4        # Postgres 16 + PostGIS, ready-made image
+    container_name: parking-postgres     # fixed name, so we can refer to it easily
+    restart: unless-stopped              # start again automatically after a reboot or crash
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}          # values are read from your .env file . 
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}  # Built in behviour to read from .env file. If not found, it will use the default value. 
+      POSTGRES_DB: parking                     # creates the "parking" database on first start
+    ports:
+      - "5432:5432"                      # left = port on your PC, right = port inside the container
+    volumes:
+      - pg_data:/var/lib/postgresql/data              # keeps data safe when the container is recreated
+      - ./postgres/init:/docker-entrypoint-initdb.d   # scripts here run once, on first start (creates the n8n database)
+    healthcheck:                         # Docker asks "are you ready?" every 5 seconds
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d parking"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ---------- Redis (used for booking locks) ----------
+  redis:
+    image: redis:7-alpine                # small Redis image
+    container_name: parking-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]   # Redis answers "PONG" when ready
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+    # ---------- Your FastAPI application ----------
+  api:
+    build: ./api                          # build the image from api/Dockerfile (the one we tested earlier)
+    container_name: parking-api
+    restart: unless-stopped
+    environment:
+      # Address of the database. "postgres" is the SERVICE NAME above: containers find each other by service name.
+      # "postgresql+psycopg" tells SQLAlchemy to use the psycopg driver we installed with uv.
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/parking
+      # Address of Redis, again using the service name "redis".
+      REDIS_URL: redis://redis:6379/0
+      # Secret that n8n will send to call /internal endpoints (read from .env).
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+    ports:
+      - "8000:8000"                       # makes the API reachable at http://localhost:8000 on your PC
+    volumes:
+      - ./api/app:/app/app                # your code folder is shared with the container, so edits show up instantly
+    depends_on:                           # start the API only after both databases report "healthy"
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    # ---------- n8n (workflow automation / orchestration) ----------
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest   # official n8n image
+    container_name: parking-n8n
+    restart: unless-stopped
+    environment:
+      # Tell n8n to store its data in Postgres instead of its default small file database
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres          # service name of the Postgres container
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: n8n           # the separate database created by our init script
+      DB_POSTGRESDB_USER: ${POSTGRES_USER}          # same login as before, read from .env
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+
+      # Key n8n uses to encrypt the credentials you save. Never change it once set.
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+
+      # How n8n builds its own web addresses (needed later for webhooks)
+      N8N_HOST: localhost
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      WEBHOOK_URL: http://localhost:5678/
+
+      # Timezone for Schedule triggers (important for no-show and cutoff rules)
+      GENERIC_TIMEZONE: Asia/Kolkata
+      TZ: Asia/Kolkata
+    ports:
+      - "5678:5678"                         # n8n editor at http://localhost:5678
+    volumes:
+      - n8n_data:/home/node/.n8n            # keeps n8n's local files across restarts
+    depends_on:
+      postgres:
+        condition: service_healthy          # wait until Postgres is ready
+
+
+# Named storage areas that live outside the containers.
+# Without these, all data would vanish whenever a container is recreated.
+volumes:
+  pg_data:
+  n8n_data:
