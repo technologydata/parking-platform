@@ -1,0 +1,174 @@
+{
+  "name": "W1 - Slot No-Show Release",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -656,
+        -176
+      ],
+      "id": "d74ec281-239a-4459-817f-9004ad2d609a",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "bookings",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1.1,
+      "position": [
+        -288,
+        -144
+      ],
+      "id": "6773828b-86cc-4b31-ab5a-3a7f8562c450",
+      "name": "One item per booking"
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/internal/bookings/overdue",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -480,
+        -272
+      ],
+      "id": "7beb2073-96df-44d1-81b7-04fe3b6785a4",
+      "name": "Get overdue bookings",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "58Rdo3CWAQV1kY0A",
+          "name": "Parking Internal API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://api:8000/internal/bookings/{{ $json.id }}/release",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -64,
+        -144
+      ],
+      "id": "2f43cfa9-f42d-4d16-af55-a6e995256bcb",
+      "name": "Release booking",
+      "retryOnFail": false,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "58Rdo3CWAQV1kY0A",
+          "name": "Parking Internal API"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fd882c9e-698d-4531-8ca3-2aef5cafb6c4",
+              "name": "employee_id",
+              "value": "={{ $json.employee_id }}",
+              "type": "string"
+            },
+            {
+              "id": "a6861978-9a87-4fdd-9ad9-d0c6cc52c705",
+              "name": "message",
+              "value": "=Your parking booking for {{ $json.booking_date }} was released because you did not arrive within the grace period.",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        160,
+        -240
+      ],
+      "id": "895ecdbd-766b-4e8f-8efa-8254432a6245",
+      "name": "Build notification message"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get overdue bookings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get overdue bookings": {
+      "main": [
+        [
+          {
+            "node": "One item per booking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One item per booking": {
+      "main": [
+        [
+          {
+            "node": "Release booking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Release booking": {
+      "main": [
+        [
+          {
+            "node": "Build notification message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "214f912f-cbf4-4aeb-8121-83d5875b6016",
+  "meta": {
+    "instanceId": "9b86cf4624ce3e8ac62be379753701990f6f452e082633ef232955b5055c751f"
+  },
+  "nodeGroups": [],
+  "id": "rRPzUwdzAWCeTz9o",
+  "tags": []
+}

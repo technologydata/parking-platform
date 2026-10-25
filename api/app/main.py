@@ -51,7 +51,7 @@ from sqlalchemy.orm import Session
 from .database import Base, SessionLocal, engine, get_db
 
 # From our own file models.py: the two table classes
-from .models import Booking, Slot
+from .models import ACTIVE_STATUSES, Booking, Slot
 
 
 # ============================================================
@@ -192,7 +192,7 @@ def availability(zone: Literal["BIKE", "CAR"], day: date, db: Session = Depends(
         # Link each booking to its slot row
         .join(Slot, Slot.id == Booking.slot_id)
         # Same zone, same date, and still active (cancelled bookings don't count)
-        .where(Slot.zone == zone, Booking.booking_date == day, Booking.status == "BOOKED")
+        .where(Slot.zone == zone, Booking.booking_date == day, Booking.status.in_(ACTIVE_STATUSES))
     )
 
     # Send the numbers back as JSON
@@ -235,7 +235,7 @@ def create_booking(body: BookingIn, db: Session = Depends(get_db)):
             select(Booking.id).where(
                 Booking.employee_id == body.employee_id,
                 Booking.booking_date == body.booking_date,
-                Booking.status == "BOOKED",
+                Booking.status.in_(ACTIVE_STATUSES),
             )
         )
         # If a booking was found, refuse with 409 (Conflict)
@@ -245,7 +245,7 @@ def create_booking(body: BookingIn, db: Session = Depends(get_db)):
         # STEP 3: Find a free slot.
         # "taken" is a subquery: the slot ids already booked on this date.
         taken = select(Booking.slot_id).where(
-            Booking.booking_date == body.booking_date, Booking.status == "BOOKED"
+            Booking.booking_date == body.booking_date, Booking.status.in_(ACTIVE_STATUSES)
         )
         # Pick the first slot in the requested zone whose id is NOT in "taken".
         #   order_by(Slot.id) -> lowest slot number first
@@ -298,10 +298,10 @@ def create_booking(body: BookingIn, db: Session = Depends(get_db)):
 # dependencies=[Depends(require_internal_key)] runs the API key check first.
 # If the key is wrong, the function body below never runs.
 @app.get("/internal/bookings/overdue", dependencies=[Depends(require_internal_key)])
-# grace_minutes comes from the URL, e.g. ?grace_minutes=30. It defaults to 15.
-def overdue_bookings(grace_minutes: int = 15, db: Session = Depends(get_db)):
+# grace_minutes comes from the URL, e.g. ?grace_minutes=60. It defaults to 30.
+def overdue_bookings(grace_minutes: int = 30, db: Session = Depends(get_db)):
     # The cutoff moment = now (in UTC) minus the grace period.
-    # Example: now is 9:30 and grace is 15 min, so cutoff is 9:15.
+    # Example: now is 10:00 and grace is 30 min, so cutoff is 9:30.
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=grace_minutes)
 
     # Find bookings that are still BOOKED and whose promised arrival time is
@@ -318,3 +318,61 @@ def overdue_bookings(grace_minutes: int = 15, db: Session = Depends(get_db)):
     # n8n stops a flow when a node returns an empty list, but an object always
     # gives it something to inspect, even when the count is 0.
     return {"count": len(rows), "bookings": [to_dict(b) for b in rows]}
+
+def get_booking_or_404(db: Session, booking_id: int) -> Booking:
+    # Look up one booking by its id (SQL: SELECT * FROM bookings WHERE id = :booking_id)
+    booking = db.get(Booking, booking_id)
+    # No such booking -> return 404 (Not Found)
+    if booking is None:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    return booking
+
+
+# ---------- POST /bookings/{booking_id}/check-in : employee arrived ----------
+
+# {booking_id} in the URL is a variable part, e.g. POST /bookings/2/check-in
+@app.post("/bookings/{booking_id}/check-in")
+def check_in(booking_id: int, db: Session = Depends(get_db)):
+    # Find the booking, or return 404 if the id doesn't exist
+    booking = get_booking_or_404(db, booking_id)
+
+    # Only an active booking can be checked in.
+    # A booking that is already CHECKED_IN, NO_SHOW or CANCELLED is refused with 409 (Conflict).
+    if booking.status != "BOOKED":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot check in a booking with status {booking.status}",
+        )
+
+    # Mark the employee as arrived. W1 only looks at BOOKED rows, so it will now skip this one.
+    booking.status = "CHECKED_IN"
+    db.commit()  # save the change to Postgres
+    db.refresh(booking)  # reload the row so we return what is really stored
+    return to_dict(booking)
+
+# ---------- POST /internal/bookings/{booking_id}/release : used by n8n (W1) ----------
+
+# dependencies=[...] runs the API key check first, the same as the overdue endpoint
+@app.post(
+    "/internal/bookings/{booking_id}/release",
+    dependencies=[Depends(require_internal_key)],
+)
+def release_booking(booking_id: int, db: Session = Depends(get_db)):
+    # Find the booking, or return 404 if the id doesn't exist
+    booking = get_booking_or_404(db, booking_id)
+
+    # Only a booking that is still BOOKED can be released.
+    # If the employee checked in (or it was already released), refuse with 409.
+    # This protects people who arrived between n8n's query and its release call.
+    if booking.status != "BOOKED":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot release a booking with status {booking.status}",
+        )
+
+    # Mark as a no-show. The unique index in models.py only counts BOOKED rows,
+    # so this also frees the slot for someone else on that date.
+    booking.status = "NO_SHOW"
+    db.commit()  # save the change to Postgres
+    db.refresh(booking)  # reload the row so we return what is really stored
+    return to_dict(booking)
