@@ -78,9 +78,11 @@ Workflows are stored as JSON files in `n8n/workflows/`. Git cannot see workflows
    - Name the credential `Parking Internal API`
    - Header **Name**: `X-API-Key`
    - Header **Value**: the `INTERNAL_API_KEY` from your own `.env`
-3. Import each file: **Workflows -> (menu) -> Import from file**, choose a file from `n8n/workflows/`.
-4. Open every **HTTP Request** node and re-select `Parking Internal API`. Credential ids differ between machines, so the imported reference may show as missing.
-5. Workflows are exported as **inactive**. Switch one on only when you want it to run on its schedule.
+3. Import **S1 first**, then the others: **Workflows -> (menu) -> Import from file**, and choose a file from `n8n/workflows/`. Order: `S1-send-notification.json`, then `W0`, `W1` and `W2`.
+4. Open every **HTTP Request** node and re-select the `Parking Internal API` credential. Credential ids differ between machines, so the imported reference may show as missing.
+5. Open the `Send via S1` node in W1 and W2, and re-select **S1 - Send Notification** as the workflow to call. Sub-workflow ids also differ between machines.
+6. **Publish S1.** A published workflow can only call a sub-workflow that is also published. S1 has no schedule, so it only runs when called.
+7. Publish W1 or W2 only when you want them to run on their 5-minute schedule.
 
 ### Exporting your own changes
 
@@ -96,9 +98,20 @@ Open the workflow, use the menu (three dots) -> **Download**, move the file into
 | `POST /bookings/{id}/check-in` | gate (stand-in for now) | Marks the booking `CHECKED_IN` |
 | `GET /internal/bookings/overdue` | n8n | Bookings still `BOOKED` after the grace period (default 30 min) |
 | `POST /internal/bookings/{id}/release` | n8n | Sets a booking to `NO_SHOW`, which frees the slot |
+| `GET /internal/bookings/due-reminders` | n8n | Bookings starting within the next 30 minutes that have not been reminded yet |
+| `POST /internal/bookings/{id}/reminder-sent` | n8n | Records that a reminder was sent (`reminder_sent_at`) |
 
 `/internal/` endpoints need the `X-API-Key` header.
 
+## Database changes made by hand
+
+`create_all` creates missing tables but never changes existing ones. If you ran the project before the reminder feature, run this once:
+
+```sql
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reminder_sent_at timestamptz;
+```
+
+A fresh clone gets the column automatically.
 
 ## Notes
 
