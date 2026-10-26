@@ -1,0 +1,103 @@
+{
+  "name": "W0 - Foundation Smoke Test",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -368,
+        -112
+      ],
+      "id": "9135c6f9-fbbf-45b4-a00c-a29431252deb",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/health",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -112,
+        -112
+      ],
+      "id": "486c6d8b-2f54-4f41-bdf7-3aead66c7c33",
+      "name": "Check Health"
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/internal/bookings/overdue",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "grace_minutes",
+              "value": "15"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        112,
+        -112
+      ],
+      "id": "c28ec0a7-07b5-4bc3-af71-26dfd6443264",
+      "name": "Get Overdue Bookings",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "58Rdo3CWAQV1kY0A",
+          "name": "Parking Internal API"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Check Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Health": {
+      "main": [
+        [
+          {
+            "node": "Get Overdue Bookings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Overdue Bookings": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "17acdec7-e40b-4af5-8ae3-2759cf567b47",
+  "meta": {
+    "instanceId": "9b86cf4624ce3e8ac62be379753701990f6f452e082633ef232955b5055c751f"
+  },
+  "nodeGroups": [],
+  "id": "fXXt5QotZIcw1pHC",
+  "tags": []
+}

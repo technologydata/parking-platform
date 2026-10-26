@@ -9,6 +9,9 @@ from .database import Base
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
+# Statuses that occupy a parking slot. BOOKED = reserved, CHECKED_IN = vehicle has arrived.
+# NO_SHOW and CANCELLED are not here, so those bookings free the slot.
+ACTIVE_STATUSES = ("BOOKED", "CHECKED_IN")
 
 class Slot(Base):
     __tablename__ = "slots"
@@ -27,7 +30,8 @@ class Booking(Base):
             "slot_id",
             "booking_date",
             unique=True,
-            postgresql_where=text("status = 'BOOKED'"),
+            # Keep this list in sync with ACTIVE_STATUSES above.
+            postgresql_where=text("status IN ('BOOKED', 'CHECKED_IN')"),
         ),
     )
 
