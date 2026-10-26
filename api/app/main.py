@@ -142,6 +142,10 @@ def to_dict(b: Booking) -> dict:
         "arrival_by": b.arrival_by.isoformat(),
         # Current status, e.g. "BOOKED"
         "status": b.status,
+        # When the reminder was sent, or None if it hasn't been sent yet.
+        # The "if" avoids calling .isoformat() on an empty value, which would raise an error.
+        "reminder_sent_at": b.reminder_sent_at.isoformat() if b.reminder_sent_at else None,
+
     }
 
 
@@ -375,4 +379,60 @@ def release_booking(booking_id: int, db: Session = Depends(get_db)):
     booking.status = "NO_SHOW"
     db.commit()  # save the change to Postgres
     db.refresh(booking)  # reload the row so we return what is really stored
+    return to_dict(booking)
+
+
+# ---------- GET /internal/bookings/due-reminders : used by n8n (W2) ----------
+
+@app.get("/internal/bookings/due-reminders", dependencies=[Depends(require_internal_key)])
+def due_reminders(minutes_before: int = 30, db: Session = Depends(get_db)):
+    # The reminder window is from "now" to "now + minutes_before" (30 by default, from the SRS)
+    now = datetime.now(timezone.utc)
+    window_end = now + timedelta(minutes=minutes_before)
+
+    # SQL equivalent:
+    # SELECT * FROM bookings
+    # WHERE status = 'BOOKED' AND reminder_sent_at IS NULL
+    #   AND arrival_by > :now AND arrival_by <= :window_end
+    # ORDER BY arrival_by
+    rows = db.scalars(
+        select(Booking)
+        .where(
+            Booking.status == "BOOKED",           # still an active, not-yet-arrived booking
+            Booking.reminder_sent_at.is_(None),   # "IS NULL": no reminder sent yet
+            Booking.arrival_by > now,             # arrival time hasn't passed
+            Booking.arrival_by <= window_end,     # and is within the next 30 minutes
+        )
+        .order_by(Booking.arrival_by)             # soonest arrival first
+    ).all()
+
+    # Same shape as the overdue endpoint: an object with a count, never a bare list
+    return {"count": len(rows), "bookings": [to_dict(b) for b in rows]}
+
+
+# ---------- POST /internal/bookings/{booking_id}/reminder-sent : used by n8n (W2) ----------
+
+@app.post(
+    "/internal/bookings/{booking_id}/reminder-sent",
+    dependencies=[Depends(require_internal_key)],
+)
+def mark_reminder_sent(booking_id: int, db: Session = Depends(get_db)):
+    # Find the booking, or return 404 if the id doesn't exist
+    booking = get_booking_or_404(db, booking_id)
+
+    # Only a still-active booking can have its reminder marked
+    if booking.status != "BOOKED":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot mark a reminder for a booking with status {booking.status}",
+        )
+
+    # Refuse a second mark, so a duplicate call is visible instead of silently overwriting the time
+    if booking.reminder_sent_at is not None:
+        raise HTTPException(status_code=409, detail="Reminder already marked as sent")
+
+    # Record when the reminder went out. The due-reminders query skips this booking from now on.
+    booking.reminder_sent_at = datetime.now(timezone.utc)
+    db.commit()           # save the change to Postgres
+    db.refresh(booking)   # reload the row so we return what is really stored
     return to_dict(booking)
