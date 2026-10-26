@@ -42,3 +42,6 @@ class Booking(Base):
     arrival_by: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(15), default="BOOKED")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # When the booking reminder was sent, value will be stored. NULL = not sent yet.
+    # "datetime | None" means the value may be empty; SQLAlchemy then makes the column nullable.
+    reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
