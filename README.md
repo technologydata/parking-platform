@@ -31,7 +31,7 @@ Rule: n8n never writes to the parking database directly. It only calls the API.
    ```powershell
    [guid]::NewGuid().ToString("N")
    ```
-4. Start everything:
+4. Start everything. The API container builds the database tables itself (`alembic upgrade head`):
    ```powershell
    docker compose up -d --build
    ```
@@ -63,6 +63,7 @@ On first visit, n8n asks you to create your own owner account.
 ## Project layout
 
 - `api/` - FastAPI service (managed with uv)
+- `api/alembic/` - database migrations (one file per schema change)
 - `postgres/init/` - SQL that creates the n8n database on first start
 - `n8n/workflows/` - exported n8n workflow JSON files
 - `docker-compose.yml` - defines all services
@@ -103,15 +104,51 @@ Open the workflow, use the menu (three dots) -> **Download**, move the file into
 
 `/internal/` endpoints need the `X-API-Key` header.
 
-## Database changes made by hand
+## Database migrations (Alembic)
 
-`create_all` creates missing tables but never changes existing ones. If you ran the project before the reminder feature, run this once:
+The schema is managed by Alembic. The migration files in `api/alembic/versions/` are the single source of truth. The API container runs `alembic upgrade head` every time it starts, so a fresh database builds itself and an existing one catches up.
 
-```sql
-ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reminder_sent_at timestamptz;
-```
+### Making a schema change
 
-A fresh clone gets the column automatically.
+1. Edit the table definitions in `api/app/models.py` and save.
+2. Generate a migration. The number must follow the last file in `api/alembic/versions/`:
+   ```powershell
+   docker exec parking-api alembic revision --autogenerate -m "short description" --rev-id 0003
+   ```
+3. **Read the generated file.** Autogenerate is a draft. `upgrade()` should contain only the change you meant.
+4. Apply it:
+   ```powershell
+   docker exec parking-api alembic upgrade head
+   ```
+5. Check that the models and the database agree. It should print "No new upgrade operations detected.":
+   ```powershell
+   docker exec parking-api alembic check
+   ```
+6. Commit `models.py` and the new migration file **together**.
+
+Uvicorn's auto-reload does not run migrations. Only a container start or `alembic upgrade head` does.
+
+### Useful commands
+
+| Task | Command |
+|---|---|
+| Which revision is the database at? | `docker exec parking-api alembic current` |
+| Migration history | `docker exec parking-api alembic history` |
+| Undo the last migration (**deletes data in dropped columns, use on throwaway databases only**) | `docker exec parking-api alembic downgrade -1` |
+
+Alembic connects to whatever `DATABASE_URL` says. To run it against another database for one command, override it:
+`docker exec -e "DATABASE_URL=postgresql+psycopg://<user>:<password>@postgres:5432/<database>" parking-api alembic upgrade head`
+
+### If you ran the project before Alembic was added
+
+Your database has the tables but no `alembic_version` table. The API would try to create tables that already exist and keep restarting. Pick one:
+
+- **No data you need (simplest):** `docker compose down -v`, then `docker compose up -d --build`. This deletes **all** data, including your n8n workflows and credentials.
+- **Keep your data:** first make sure your database matches `0001` (the `bookings.reminder_sent_at` column exists and the `uq_active_slot_per_day` index covers `BOOKED` and `CHECKED_IN`). Then stamp it, and start the stack:
+  ```powershell
+  docker compose run --rm api alembic stamp 0001
+  docker compose up -d --build
+  ```
 
 ## Notes
 
