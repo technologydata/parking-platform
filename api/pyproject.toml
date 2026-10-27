@@ -3,6 +3,7 @@ name = "parking-api"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
+    "alembic>=1.20.1",
     "fastapi>=0.159.1",
     "psycopg[binary]>=3.3.6",
     "redis>=8.1.0",

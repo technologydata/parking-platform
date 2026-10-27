@@ -48,7 +48,7 @@ from sqlalchemy.orm import Session
 #   engine       = the connection to Postgres
 #   get_db       = helper that gives each request its own session
 # The dot means "from the file next to this one".
-from .database import Base, SessionLocal, engine, get_db
+from .database import SessionLocal, get_db
 
 # From our own file models.py: the two table classes
 from .models import ACTIVE_STATUSES, Booking, Slot
@@ -78,29 +78,23 @@ INTERNAL_API_KEY = os.environ["INTERNAL_API_KEY"]
 # startup, code after "yield" runs at shutdown.
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create the slots and bookings tables if they don't exist yet.
-    # It never changes or deletes tables that already exist.
-    Base.metadata.create_all(engine)
+    # The tables are no longer created here. Alembic builds and updates them
+    # (see the CMD line in the Dockerfile), so the schema has one source of truth: the migration files.
 
     # Open a database session. "with" closes it automatically when the block ends.
     with SessionLocal() as db:
-        # Count the rows in the slots table. We only add demo slots when it's empty,
-        # so restarting the API never creates duplicates.
+        # Seed the demo slots only when the slots table is empty, so restarts never add duplicates.
+        # This still works on a fresh database, because "alembic upgrade head" ran before uvicorn started.
         if db.scalar(select(func.count(Slot.id))) == 0:
-            # Add 10 bike slots: B-01, B-02, ... B-10
-            # {i:02d} means "write the number with at least 2 digits" (1 becomes 01)
             for i in range(1, 11):
-                db.add(Slot(zone="BIKE", code=f"B-{i:02d}"))
-            # Add 5 car slots: C-01 ... C-05
+                db.add(Slot(zone="BIKE", code=f"B-{i:02d}"))  # B-01 ... B-10
             for i in range(1, 6):
-                db.add(Slot(zone="CAR", code=f"C-{i:02d}"))
-            # Save all the new slots to the database in one go
+                db.add(Slot(zone="CAR", code=f"C-{i:02d}"))  # C-01 ... C-05
             db.commit()
 
-    # Pause here. The API now starts serving requests.
-    # Shutdown code (if we ever need it) would go after this line.
+    # Pause here. The API now serves requests.
     yield
-
+    
 
 # Create the API application.
 # title and version appear on the /docs page.
@@ -145,6 +139,9 @@ def to_dict(b: Booking) -> dict:
         # When the reminder was sent, or None if it hasn't been sent yet.
         # The "if" avoids calling .isoformat() on an empty value, which would raise an error.
         "reminder_sent_at": b.reminder_sent_at.isoformat() if b.reminder_sent_at else None,
+        # When the employee checked in, or None if they haven't.
+        # The "if" avoids calling .isoformat() on an empty value, which would raise an error.
+        "checked_in_at": b.checked_in_at.isoformat() if b.checked_in_at else None,
 
     }
 
@@ -350,6 +347,8 @@ def check_in(booking_id: int, db: Session = Depends(get_db)):
 
     # Mark the employee as arrived. W1 only looks at BOOKED rows, so it will now skip this one.
     booking.status = "CHECKED_IN"
+    # Record when it happened (UTC, like every other timestamp we store)
+    booking.checked_in_at = datetime.now(timezone.utc)
     db.commit()  # save the change to Postgres
     db.refresh(booking)  # reload the row so we return what is really stored
     return to_dict(booking)

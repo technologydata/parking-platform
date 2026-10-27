@@ -50,6 +50,7 @@ services:
       - "8000:8000"                       # makes the API reachable at http://localhost:8000 on your PC
     volumes:
       - ./api/app:/app/app                # your code folder is shared with the container, so edits show up instantly
+      - ./api/alembic:/app/alembic        # migration files created in the container appear on your PC
     depends_on:                           # start the API only after both databases report "healthy"
       postgres:
         condition: service_healthy
@@ -96,3 +97,4 @@ services:
 volumes:
   pg_data:
   n8n_data:
+  

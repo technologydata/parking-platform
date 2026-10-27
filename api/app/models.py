@@ -45,3 +45,6 @@ class Booking(Base):
     # When the booking reminder was sent, value will be stored. NULL = not sent yet.
     # "datetime | None" means the value may be empty; SQLAlchemy then makes the column nullable.
     reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # When the employee checked in (arrived). NULL = has not checked in.
+    # "datetime | None" means the value may be empty, so the column is nullable.
+    checked_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

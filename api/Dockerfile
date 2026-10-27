@@ -33,9 +33,20 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Layer 2: copy your application code (changes often, so it comes last)
 COPY app ./app
 
+# Alembic (database migrations): the config file and the migrations folder.
+# docker-compose also shares the folder with your PC, so new migration files show up in Git.
+COPY alembic.ini ./
+COPY alembic ./alembic
+
+
 # Command that runs when the container starts:
+# On every start: first bring the database schema up to date, then start the API.
+#   alembic upgrade head   applies any migrations the database hasn't seen yet (nothing to do when it is up to date)
+#   &&                     start uvicorn only if the migration succeeded
+#   exec                   makes uvicorn the main process, so "docker compose stop" reaches it and it shuts down cleanly
+# "sh -c" is needed because we are chaining two commands.
 #   app.main:app  = the "app" object inside app/main.py
 #   --host 0.0.0.0  accept connections from outside the container
 #   --port 8000   the port the API listens on
 #   --reload      restart automatically when code changes (development only)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
