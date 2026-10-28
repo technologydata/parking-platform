@@ -1,0 +1,152 @@
+{
+  "name": "E1 - Error Handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -288,
+        -96
+      ],
+      "id": "381ea66a-4b1a-4367-a166-d8a647bfa4d3",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fbb55fc3-53bc-4c54-bf30-d41cebbf6b65",
+              "name": "employee_id",
+              "value": "ADMIN",
+              "type": "string"
+            },
+            {
+              "id": "19eacc1d-ce56-447e-92d5-da8492cd5def",
+              "name": "subject",
+              "value": "=n8n alert: {{ $json.workflow.name }} failed",
+              "type": "string"
+            },
+            {
+              "id": "0dd01ee2-6e79-4a86-93b7-98d746130c42",
+              "name": "message",
+              "value": "=Workflow: {{ $json.workflow.name }} Failed node: {{ $json.execution?.lastNodeExecuted || 'not available (the trigger itself failed)' }} Error: {{ $json.execution?.error?.message || $json.trigger?.error?.message || 'no error text available' }} Execution: {{ $json.execution?.url || 'not available' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -64,
+        -96
+      ],
+      "id": "fb40efe4-002d-4a52-b026-3cb355592890",
+      "name": "Build alert"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "fSZMZnOU7S6VIguw",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/fSZMZnOU7S6VIguw",
+          "cachedResultName": "S1 - Send Notification"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "employee_id": "={{ $json.employee_id }}",
+            "subject": "={{ $json.subject }}",
+            "message": "={{ $json.message }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "employee_id",
+              "displayName": "employee_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.4,
+      "position": [
+        160,
+        -96
+      ],
+      "id": "eb7a1c52-2f44-47aa-99d1-1c91086cda6b",
+      "name": "Send via S1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build alert": {
+      "main": [
+        [
+          {
+            "node": "Send via S1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "8e271818-cdf5-489f-92d0-bf341dd00d1f",
+  "meta": {
+    "instanceId": "9b86cf4624ce3e8ac62be379753701990f6f452e082633ef232955b5055c751f"
+  },
+  "nodeGroups": [],
+  "id": "nVTDZ9YIB5BxNABH",
+  "tags": []
+}
