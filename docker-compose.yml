@@ -91,6 +91,17 @@ services:
       postgres:
         condition: service_healthy          # wait until Postgres is ready
 
+   # ---------- Mailpit (catches emails for testing; nothing leaves your machine) ----------
+  mailpit:
+    image: axllent/mailpit:latest        # official image ("latest" is fine while learning)
+    container_name: parking-mailpit
+    restart: unless-stopped
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1         # accept any SMTP username/password (n8n's credential form asks for them)
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1     # allow logins without TLS (fine on a local test setup)
+    ports:
+      - "8025:8025"                      # web page: http://localhost:8025
+      - "1025:1025"                      # SMTP port; only needed so we can test from your PC (n8n uses the Docker network)
 
 # Named storage areas that live outside the containers.
 # Without these, all data would vanish whenever a container is recreated.

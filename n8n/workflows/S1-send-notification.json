@@ -10,6 +10,9 @@
             },
             {
               "name": "message"
+            },
+            {
+              "name": "subject"
             }
           ]
         }
@@ -17,8 +20,8 @@
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.3,
       "position": [
-        -320,
-        -80
+        -656,
+        -176
       ],
       "id": "b865dde5-4ae1-4a91-880b-5c628b3db16e",
       "name": "When Executed by Another Workflow"
@@ -28,21 +31,15 @@
         "assignments": {
           "assignments": [
             {
-              "id": "ab52b9a7-4ad5-4637-9f1f-d8b32149df7d",
-              "name": "channel",
-              "value": "LOG",
+              "id": "bb2c2773-8db4-4c49-b42b-8059a9861f3a",
+              "name": "to_email",
+              "value": "={{ $json.employee_id }}@parking.local",
               "type": "string"
             },
             {
-              "id": "d1b5f47c-2146-4492-a956-c7fd8db013a9",
-              "name": "delivery_status",
-              "value": "LOGGED",
-              "type": "string"
-            },
-            {
-              "id": "ad2aa861-5334-4edb-88a7-b162600f3822",
-              "name": "sent_at",
-              "value": "={{ $now.toISO() }}",
+              "id": "4134cc80-e349-49ff-9a0b-e3e1adb782de",
+              "name": "subject",
+              "value": "={{ $json.subject || 'Parking notification' }}",
               "type": "string"
             }
           ]
@@ -53,11 +50,145 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.5,
       "position": [
-        -96,
-        -80
+        -432,
+        -176
+      ],
+      "id": "50432e85-8df8-4929-a312-cebd950a6aa2",
+      "name": "Build email"
+    },
+    {
+      "parameters": {
+        "fromEmail": "parking@parking.local",
+        "toEmail": "={{ $json.to_email }}",
+        "subject": "={{ $json.subject || 'Parking notification' }}",
+        "emailFormat": "text",
+        "text": "={{ $json.message }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        -128,
+        -192
+      ],
+      "id": "aacf8fad-d305-44d4-a19f-8a97a7279b8c",
+      "name": "Send email",
+      "webhookId": "3d7e904a-031f-4fa6-9240-c2e076214e4f",
+      "credentials": {
+        "smtp": {
+          "id": "TKGpfmN2fIbc4Cbx",
+          "name": "Parking SMTP"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ab52b9a7-4ad5-4637-9f1f-d8b32149df7d",
+              "name": "channel",
+              "value": "EMAIL",
+              "type": "string"
+            },
+            {
+              "id": "d1b5f47c-2146-4492-a956-c7fd8db013a9",
+              "name": "delivery_status",
+              "value": "SENT",
+              "type": "string"
+            },
+            {
+              "id": "ad2aa861-5334-4edb-88a7-b162600f3822",
+              "name": "sent_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "c26a3e7a-12e0-47c1-ac59-3eb46ac76a75",
+              "name": "employee_id",
+              "value": "={{ $('Build email').first().json.employee_id }}",
+              "type": "string"
+            },
+            {
+              "id": "bae5b670-36a9-4187-adab-4273f1428f88",
+              "name": "message",
+              "value": "={{ $('Build email').first().json.message }}",
+              "type": "string"
+            },
+            {
+              "id": "ff73998c-4203-42c5-982c-be8de6f42b47",
+              "name": "error",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        112,
+        -256
       ],
       "id": "3542cb52-0b52-416a-9fbf-8dfa139136bc",
-      "name": "Edit Fields"
+      "name": "Deliver (email)"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "87e062b5-81a2-4384-ba57-a0f202c35343",
+              "name": "employee_id",
+              "value": "={{ $('Build email').first().json.employee_id }}",
+              "type": "string"
+            },
+            {
+              "id": "e0e7cf8a-259c-45aa-bd9d-ee4144cc44b7",
+              "name": "message",
+              "value": "={{ $('Build email').first().json.message }}",
+              "type": "string"
+            },
+            {
+              "id": "c9d2d65d-289d-4390-aba1-f69c242b399e",
+              "name": "channel",
+              "value": "EMAIL",
+              "type": "string"
+            },
+            {
+              "id": "53f12fdd-d207-4efe-8ea6-f89e09fb27df",
+              "name": "delivery_status",
+              "value": "FAILED",
+              "type": "string"
+            },
+            {
+              "id": "7032f415-f71d-4800-9ac9-2aecb43053a2",
+              "name": "sent_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "dcc34338-d2f2-45b1-b4f8-2830abb81c01",
+              "name": "error",
+              "value": "={{ typeof $json.error === 'string' ? $json.error : ($json.error?.message || $json.error?.description || 'Email send failed') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        96,
+        -96
+      ],
+      "id": "de1420a5-aff3-4c25-abe4-cfd47e7cfbd5",
+      "name": "Deliver (failed)"
     }
   ],
   "pinData": {},
@@ -66,7 +197,36 @@
       "main": [
         [
           {
-            "node": "Edit Fields",
+            "node": "Build email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build email": {
+      "main": [
+        [
+          {
+            "node": "Send email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send email": {
+      "main": [
+        [
+          {
+            "node": "Deliver (email)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Deliver (failed)",
             "type": "main",
             "index": 0
           }
@@ -79,8 +239,9 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "38b1f4ef-0f0b-4fc2-a042-832e04abd9e1",
+  "versionId": "28d11d42-0206-4a2c-94d8-d9b2598a634d",
   "meta": {
+    "templateCredsSetupCompleted": true,
     "instanceId": "9b86cf4624ce3e8ac62be379753701990f6f452e082633ef232955b5055c751f"
   },
   "nodeGroups": [],

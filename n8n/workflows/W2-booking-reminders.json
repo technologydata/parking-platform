@@ -71,6 +71,12 @@
               "name": "message",
               "value": "=Reminder: your parking booking for {{ $json.booking_date }} is due at {{ DateTime.fromISO($json.arrival_by).setZone('Asia/Kolkata').toFormat('HH:mm') }}. Please arrive on time, or the slot is released after the grace period.",
               "type": "string"
+            },
+            {
+              "id": "8a85e5b7-23a0-4c6b-8a74-06c09cdb7728",
+              "name": "subject",
+              "value": "Parking booking reminder",
+              "type": "string"
             }
           ]
         },
@@ -99,7 +105,8 @@
           "mappingMode": "defineBelow",
           "value": {
             "employee_id": "={{ $json.employee_id }}",
-            "message": "={{ $json.message }}"
+            "message": "={{ $json.message }}",
+            "subject": "={{ $json.subject }}"
           },
           "matchingColumns": [],
           "schema": [
@@ -122,6 +129,16 @@
               "canBeUsedToMatch": true,
               "type": "string",
               "removed": false
+            },
+            {
+              "id": "subject",
+              "displayName": "subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
             }
           ],
           "attemptToConvertTypes": false,
@@ -133,11 +150,12 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.4,
       "position": [
-        224,
-        -400
+        288,
+        -80
       ],
       "id": "9481deb2-e095-4100-ac9b-1f894a7d10ba",
-      "name": "Send via S1"
+      "name": "Send via S1",
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -152,7 +170,7 @@
             {
               "id": "6e1e8949-2b9b-4feb-ab47-21946b36e155",
               "leftValue": "={{ $json.delivery_status }}",
-              "rightValue": "LOGGED",
+              "rightValue": "SENT",
               "operator": {
                 "type": "string",
                 "operation": "equals",
@@ -167,8 +185,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.4,
       "position": [
-        416,
-        -192
+        432,
+        -288
       ],
       "id": "5d0a4a16-7050-475f-8661-20e49626d4f4",
       "name": "Delivered?"
@@ -263,7 +281,8 @@
             "type": "main",
             "index": 0
           }
-        ]
+        ],
+        []
       ]
     }
   },
@@ -272,7 +291,7 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "8da727d0-4783-49e1-860e-7f09b86f0a83",
+  "versionId": "7bf47f42-ed8e-4e20-8cf4-408551d734fb",
   "meta": {
     "instanceId": "9b86cf4624ce3e8ac62be379753701990f6f452e082633ef232955b5055c751f"
   },

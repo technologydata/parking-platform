@@ -48,6 +48,7 @@ Rule: n8n never writes to the parking database directly. It only calls the API.
 | API health check | http://localhost:8000/health |
 | API docs (Swagger) | http://localhost:8000/docs |
 | n8n editor | http://localhost:5678 |
+| Mailpit (caught emails) | http://localhost:8025 |
 
 On first visit, n8n asks you to create your own owner account.
 
@@ -74,13 +75,15 @@ On first visit, n8n asks you to create your own owner account.
 Workflows are stored as JSON files in `n8n/workflows/`. Git cannot see workflows that only exist inside n8n, so every change is exported to this folder.
 
 1. Open http://localhost:5678 and create your owner account (first visit only).
-2. Create the credential the workflows use:
-   - **Credentials -> Create credential -> Header Auth**
-   - Name the credential `Parking Internal API`
-   - Header **Name**: `X-API-Key`
-   - Header **Value**: the `INTERNAL_API_KEY` from your own `.env`
-3. Import **S1 first**, then the others: **Workflows -> (menu) -> Import from file**, and choose a file from `n8n/workflows/`. Order: `S1-send-notification.json`, then `W0`, `W1` and `W2`.
-4. Open every **HTTP Request** node and re-select the `Parking Internal API` credential. Credential ids differ between machines, so the imported reference may show as missing.
+2. Create the two credentials the workflows use (**Credentials -> Create credential**):
+   - **Header Auth**, named `Parking Internal API`
+     - Header **Name**: `X-API-Key`
+     - Header **Value**: the `INTERNAL_API_KEY` from your own `.env`
+   - **SMTP**, named `Parking SMTP` (it points at the local Mailpit container)
+     - **User** / **Password**: `parking` / `parking` (Mailpit accepts any login)
+     - **Host**: `mailpit`, **Port**: `1025`, **SSL/TLS**: off
+3. Import **S1 first**, then the others: **Workflows -> (menu) -> Import from file**, using the files in `n8n/workflows/`. Order: `S1-send-notification.json`, then `W0`, `W1` and `W2`.
+4. Open the `Send email` node in S1 and re-select the `Parking SMTP` credential. Open every **HTTP Request** node and re-select `Parking Internal API`. Credential ids differ between machines, so the imported reference may show as missing.
 5. Open the `Send via S1` node in W1 and W2, and re-select **S1 - Send Notification** as the workflow to call. Sub-workflow ids also differ between machines.
 6. **Publish S1.** A published workflow can only call a sub-workflow that is also published. S1 has no schedule, so it only runs when called.
 7. Publish W1 or W2 only when you want them to run on their 5-minute schedule.
@@ -149,6 +152,22 @@ Your database has the tables but no `alembic_version` table. The API would try t
   docker compose run --rm api alembic stamp 0001
   docker compose up -d --build
   ```
+
+## Notifications
+
+All workflows send messages through the shared sub-workflow **S1 - Send Notification**. S1 takes `employee_id`, `message` and an optional `subject`, sends an email and returns:
+
+| Field | Meaning |
+|---|---|
+| `channel` | `EMAIL` |
+| `delivery_status` | `SENT` or `FAILED` |
+| `error` | The error text when the send failed, otherwise empty |
+
+**Mailpit** catches every email, so nothing leaves your machine. Open http://localhost:8025 to read them. Messages live in memory and disappear when the container restarts.
+
+The recipient is a placeholder, `<employee_id>@parking.local`, because the API stores no email addresses yet. To use a real mail server later, change only the `Parking SMTP` credential and the address in S1's `Build email` node.
+
+W2 marks a reminder as sent only when S1 returns `SENT`, so a failed send is retried on the next run.
 
 ## Notes
 
