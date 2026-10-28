@@ -173,4 +173,4 @@ W2 marks a reminder as sent only when S1 returns `SENT`, so a failed send is ret
 
 - Never commit `.env`. It holds secrets.
 - Postgres only reads its init scripts and password on the very first start. Use `docker compose down -v` to reset.
-- If port 5432 is already used on your machine, change it to `"5433:5432"` in `e.yml`.
+- If port 5432 is already used on your machine, change it to `"5433:5432"` in `docker-compose.yml`.
