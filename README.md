@@ -82,11 +82,12 @@ Workflows are stored as JSON files in `n8n/workflows/`. Git cannot see workflows
    - **SMTP**, named `Parking SMTP` (it points at the local Mailpit container)
      - **User** / **Password**: `parking` / `parking` (Mailpit accepts any login)
      - **Host**: `mailpit`, **Port**: `1025`, **SSL/TLS**: off
-3. Import **S1 first**, then the others: **Workflows -> (menu) -> Import from file**, using the files in `n8n/workflows/`. Order: `S1-send-notification.json`, then `W0`, `W1` and `W2`.
+3. Import **S1 first**, then **E1**, then the others: **Workflows -> (menu) -> Import from file**, using the files in `n8n/workflows/`. Order: `S1-send-notification.json`, `E1-error-handler.json`, then `W0`, `W1` and `W2`.
 4. Open the `Send email` node in S1 and re-select the `Parking SMTP` credential. Open every **HTTP Request** node and re-select `Parking Internal API`. Credential ids differ between machines, so the imported reference may show as missing.
-5. Open the `Send via S1` node in W1 and W2, and re-select **S1 - Send Notification** as the workflow to call. Sub-workflow ids also differ between machines.
-6. **Publish S1.** A published workflow can only call a sub-workflow that is also published. S1 has no schedule, so it only runs when called.
-7. Publish W1 or W2 only when you want them to run on their 5-minute schedule.
+5. Open the `Send via S1` node in E1, W1 and W2, and re-select **S1 - Send Notification** as the workflow to call. Sub-workflow ids also differ between machines.
+6. Open the **Settings** of W1 and W2 and set **Error Workflow** to **E1 - Error Handler** again. The imported link points at an id from the original machine.
+7. **Publish S1 and E1.** A published workflow can only call a sub-workflow that is also published, and E1 sends its alert through S1. Neither has a schedule, so they only run when called.
+8. Publish W1 or W2 only when you want them to run on their 5-minute schedule.
 
 ### Exporting your own changes
 
@@ -169,8 +170,25 @@ The recipient is a placeholder, `<employee_id>@parking.local`, because the API s
 
 W2 marks a reminder as sent only when S1 returns `SENT`, so a failed send is retried on the next run.
 
+## Error alerts
+
+**E1 - Error Handler** emails `ADMIN@parking.local` (visible in Mailpit) whenever a linked workflow run ends in an error. W1 and W2 are linked to it in their **Settings -> Error Workflow**. S1 and E1 are not linked: S1 failures end the caller's run, which already alerts, and E1 pointing at itself could loop.
+
+E1 only runs for **automatic** executions. Clicking **Execute workflow** never triggers it.
+
+| Alert's failed node | Meaning | What to do |
+|---|---|---|
+| `Get overdue bookings` / `Get due reminders` | The API call failed (API down, wrong key) | Check `docker compose ps` and the API log |
+| `Alert: notification failed` | An email was not delivered (`delivery_status` was not `SENT`) | Check Mailpit and the `Parking SMTP` credential |
+| `Alert: release failed` (W1) | The release call failed with something other than the expected conflict | Read the error text in the alert, then the API log |
+| `Alert: mark failed` (W2) | The reminder email went out but could not be marked as sent, so it may be sent again | Read the error text in the alert, then the API log |
+
+**Expected conflicts stay quiet.** If an employee checks in just after the overdue or due list was made, the API answers 409. W1 and W2 recognise those messages and carry on without an alert.
+
+**Known limits:** a lasting fault alerts on every run (every 5 minutes). If Mailpit itself is down, the alert cannot be delivered either, because E1 sends through S1.
+
 ## Notes
 
 - Never commit `.env`. It holds secrets.
 - Postgres only reads its init scripts and password on the very first start. Use `docker compose down -v` to reset.
-- If port 5432 is already used on your machine, change it to `"5433:5432"` in `e.yml`.
+- If port 5432 is already used on your machine, change it to `"5433:5432"` in `docker-compose.yml`.

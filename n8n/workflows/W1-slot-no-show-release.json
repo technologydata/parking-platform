@@ -208,11 +208,70 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.4,
       "position": [
-        304,
-        -288
+        352,
+        -352
       ],
       "id": "f28196c3-17c3-4b0a-b454-53df757e5691",
       "name": "Delivered?"
+    },
+    {
+      "parameters": {
+        "errorMessage": "=Release notice not delivered to {{ $json.employee_id }}: {{ $json.error }}"
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        608,
+        -304
+      ],
+      "id": "ee33067b-65ba-401b-8069-6b4cadddf30f",
+      "name": "Alert: notification failed"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "ce7678d3-f605-46a3-9d5a-1f8aaaa1be60",
+              "leftValue": "={{ typeof $json.error === 'string' ? $json.error : ($json.error?.message || '') }}",
+              "rightValue": "Cannot release a booking",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        0,
+        -160
+      ],
+      "id": "25eca46b-18be-4eb9-a87f-1927655c1786",
+      "name": "Expected conflict?"
+    },
+    {
+      "parameters": {
+        "errorMessage": "=Release failed for booking {{ $json.id }} ({{ $json.employee_id }}): {{ typeof $json.error === 'string' ? $json.error : ($json.error?.message || 'unknown error') }}"
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        304,
+        -128
+      ],
+      "id": "76a8101a-0961-482f-ae39-518ca0abcb1b",
+      "name": "Alert: release failed"
     }
   ],
   "pinData": {},
@@ -258,6 +317,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Expected conflict?",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -282,14 +348,42 @@
           }
         ]
       ]
+    },
+    "Delivered?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Alert: notification failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expected conflict?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Alert: release failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
   "settings": {
     "executionOrder": "v1",
-    "binaryMode": "separate"
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "nVTDZ9YIB5BxNABH",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
-  "versionId": "a47686a8-6839-4493-89d3-ad2a22575d83",
+  "versionId": "797bafce-cd6e-4b46-bea8-147410219a5b",
   "meta": {
     "instanceId": "9b86cf4624ce3e8ac62be379753701990f6f452e082633ef232955b5055c751f"
   },
